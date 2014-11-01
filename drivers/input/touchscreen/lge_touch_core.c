@@ -3826,11 +3826,11 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 	/* accuracy solution */
 	if (ts->pdata->role->accuracy_filter_enable){
 		ts->accuracy_filter.ignore_pressure_gap = 5;
-		ts->accuracy_filter.delta_max = 30;
+		ts->accuracy_filter.delta_max = 100;
 		ts->accuracy_filter.max_pressure = 255;
-		ts->accuracy_filter.time_to_max_pressure = one_sec / 20;
-		ts->accuracy_filter.direction_count = one_sec / 6;
-		ts->accuracy_filter.touch_max_count = one_sec / 2;
+		ts->accuracy_filter.time_to_max_pressure = one_sec / 25;
+		ts->accuracy_filter.direction_count = one_sec / 8;
+		ts->accuracy_filter.touch_max_count = one_sec / 3;
 	}
 
 #if defined(CONFIG_HAS_EARLYSUSPEND)
@@ -3840,7 +3840,7 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 	register_early_suspend(&ts->early_suspend);
 #endif
 
-        atomic_set(&ts->keypad_enable, 1);
+    atomic_set(&ts->keypad_enable, 1);
 
 	/* Register sysfs for making fixed communication path to framework layer */
 	ret = sysdev_class_register(&lge_touch_sys_class);
@@ -3948,7 +3948,7 @@ static void touch_early_suspend(struct early_suspend *h)
 	bool prevent_sleep = false;
 #endif
 #if defined(CONFIG_TOUCHSCREEN_SWEEP2WAKE)
-	prevent_sleep = (s2w_switch > 0) && (s2w_s2sonly == 0);
+	prevent_sleep = (s2w_switch == 1);
 #endif
 #if defined(CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE)
 	prevent_sleep = prevent_sleep || (dt2w_switch > 0);
@@ -4007,7 +4007,7 @@ static void touch_late_resume(struct early_suspend *h)
 	bool prevent_sleep = false;
 #endif
 #if defined(CONFIG_TOUCHSCREEN_SWEEP2WAKE)
-	prevent_sleep = (s2w_switch > 0) && (s2w_s2sonly == 0);
+	prevent_sleep = (s2w_switch == 1);
 #endif
 #if defined(CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE)
 	prevent_sleep = prevent_sleep || (dt2w_switch > 0);
@@ -4029,24 +4029,24 @@ static void touch_late_resume(struct early_suspend *h)
 	}
 #endif
 
-
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 	if (prevent_sleep)
 		disable_irq_wake(ts->client->irq);
 	else
 #endif
 	{
-		release_all_ts_event(ts);
 		touch_power_cntl(ts, ts->pdata->role->resume_pwr);
 
 		if (ts->pdata->role->operation_mode)
 			enable_irq(ts->client->irq);
 		else
-			hrtimer_start(&ts->timer, ktime_set(0, ts->pdata->role->report_period), HRTIMER_MODE_REL);
+			hrtimer_start(&ts->timer,
+				ktime_set(0, ts->pdata->role->report_period),
+						HRTIMER_MODE_REL);
 
 		if (ts->pdata->role->resume_pwr == POWER_ON)
 			queue_delayed_work(touch_wq, &ts->work_init,
-					msecs_to_jiffies(ts->pdata->role->booting_delay));
+				msecs_to_jiffies(ts->pdata->role->booting_delay));
 		else
 			queue_delayed_work(touch_wq, &ts->work_init, 0);
 	}
