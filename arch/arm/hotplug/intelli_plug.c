@@ -21,6 +21,7 @@
 #include <linux/slab.h>
 #include <linux/input.h>
 #include <linux/cpufreq.h>
+#include <mach/cpufreq.h>
 
 #ifdef CONFIG_POWERSUSPEND
 #include <linux/powersuspend.h>
@@ -332,31 +333,47 @@ static void __cpuinit intelli_plug_work_fn(struct work_struct *work)
 }
 
 #if defined(CONFIG_POWERSUSPEND) || defined(CONFIG_HAS_EARLYSUSPEND)
+static void update_cpu_max_freq(int cpu, uint32_t max_freq)
+{
+	int ret = 0;
+
+	ret = msm_cpufreq_set_freq_limits(cpu, MSM_CPUFREQ_NO_LIMIT, max_freq);
+	if (ret)
+		return;
+
+	if (max_freq != MSM_CPUFREQ_NO_LIMIT)
+		pr_info("%s: Limiting cpu%d max frequency to %d\n",
+				KBUILD_MODNAME, cpu, max_freq);
+	else
+		pr_info("%s: Max frequency reset for cpu%d\n",
+				KBUILD_MODNAME, cpu);
+
+	if (cpu_online(cpu)) {
+		struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
+		if (!policy)
+			return;
+		cpufreq_driver_target(policy, policy->cur,
+				CPUFREQ_RELATION_H);
+		cpufreq_cpu_put(policy);
+	}
+
+	return;
+}
+
 static void screen_off_limit(bool on)
 {
-	unsigned int i, ret;
-	struct cpufreq_policy policy;
-	struct ip_cpu_info *l_ip_info;
+	unsigned int i;
 
 	/* not active, so exit */
 	if (screen_off_max == UINT_MAX)
 		return;
 
 	for_each_online_cpu(i) {
-		l_ip_info = &per_cpu(ip_info, i);
-		ret = cpufreq_get_policy(&policy, i);
-		if (ret)
-			continue;
-
 		if (on) {
-			/* save current instance */
-			l_ip_info->curr_max = policy.max;
-			policy.max = screen_off_max;
+			update_cpu_max_freq(i, screen_off_max);
 		} else {
-			/* restore */
-			policy.max = l_ip_info->curr_max;
+			update_cpu_max_freq(i, MSM_CPUFREQ_NO_LIMIT);
 		}
-		cpufreq_update_policy(i);
 	}
 }
 
