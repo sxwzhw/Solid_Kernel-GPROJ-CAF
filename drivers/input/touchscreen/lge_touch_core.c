@@ -760,7 +760,7 @@ void* get_touch_handle(struct i2c_client *client)
  */
 int touch_i2c_read(struct i2c_client *client, u8 reg, int len, u8 *buf)
 {
-#define SYNAPTICS_I2C_RETRY 10
+#define LGETOUCH_I2C_RETRY 10
 	int retry = 0;
 	struct i2c_msg msgs[] = {
 		{
@@ -777,17 +777,16 @@ int touch_i2c_read(struct i2c_client *client, u8 reg, int len, u8 *buf)
 		},
 	};
 
-	for (retry = 0; retry <= SYNAPTICS_I2C_RETRY; retry++) {
+	for (retry = 0; retry <= LGETOUCH_I2C_RETRY; retry++) {
 		if (i2c_transfer(client->adapter, msgs, 2) == 2)
 			break;
-
-		if (retry == SYNAPTICS_I2C_RETRY) {
+		if (retry == LGETOUCH_I2C_RETRY) {
 			if (printk_ratelimit())
 				TOUCH_ERR_MSG("transfer error\n");
 			return -EIO;
 		} else
 			msleep(10);
- 	}
+	}
 
 	return 0;
 }
@@ -3826,11 +3825,11 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 	/* accuracy solution */
 	if (ts->pdata->role->accuracy_filter_enable){
 		ts->accuracy_filter.ignore_pressure_gap = 5;
-		ts->accuracy_filter.delta_max = 100;
+		ts->accuracy_filter.delta_max = 30;
 		ts->accuracy_filter.max_pressure = 255;
-		ts->accuracy_filter.time_to_max_pressure = one_sec / 25;
-		ts->accuracy_filter.direction_count = one_sec / 8;
-		ts->accuracy_filter.touch_max_count = one_sec / 3;
+		ts->accuracy_filter.time_to_max_pressure = one_sec / 20;
+		ts->accuracy_filter.direction_count = one_sec / 6;
+		ts->accuracy_filter.touch_max_count = one_sec / 2;
 	}
 
 #if defined(CONFIG_HAS_EARLYSUSPEND)
@@ -3840,7 +3839,7 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 	register_early_suspend(&ts->early_suspend);
 #endif
 
-    atomic_set(&ts->keypad_enable, 1);
+        atomic_set(&ts->keypad_enable, 1);
 
 	/* Register sysfs for making fixed communication path to framework layer */
 	ret = sysdev_class_register(&lge_touch_sys_class);
@@ -3963,18 +3962,6 @@ static void touch_early_suspend(struct early_suspend *h)
 		return;
 	}
 
-#ifdef CUST_G_TOUCH
-	if (ts->pdata->role->ghost_detection_enable) {
-		resume_flag = 0;
-	}
-#endif
-
-#ifdef CUST_G_TOUCH
-	if (ts->pdata->role->ghost_detection_enable) {
-		hrtimer_cancel(&hr_touch_trigger_timer);
-	}
-#endif
-
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 	if (prevent_sleep) {
 		enable_irq_wake(ts->client->irq);
@@ -3982,10 +3969,21 @@ static void touch_early_suspend(struct early_suspend *h)
 	} else
 #endif
 	{
+#ifdef CUST_G_TOUCH
+		if (ts->pdata->role->ghost_detection_enable) {
+			resume_flag = 0;
+		}
+#endif
+
 		if (ts->pdata->role->operation_mode)
 			disable_irq(ts->client->irq);
 		else
 			hrtimer_cancel(&ts->timer);
+#ifdef CUST_G_TOUCH
+		if (ts->pdata->role->ghost_detection_enable) {
+			hrtimer_cancel(&hr_touch_trigger_timer);
+		}
+#endif
 
 		cancel_work_sync(&ts->work);
 		cancel_delayed_work_sync(&ts->work_init);
@@ -4022,13 +4020,6 @@ static void touch_late_resume(struct early_suspend *h)
 		return;
 	}
 
-#ifdef CUST_G_TOUCH
-	if (ts->pdata->role->ghost_detection_enable) {
-		resume_flag = 1;
-		ts_rebase_count = 0;
-	}
-#endif
-
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 	if (prevent_sleep)
 		disable_irq_wake(ts->client->irq);
@@ -4036,6 +4027,12 @@ static void touch_late_resume(struct early_suspend *h)
 #endif
 	{
 		touch_power_cntl(ts, ts->pdata->role->resume_pwr);
+#ifdef CUST_G_TOUCH
+		if (ts->pdata->role->ghost_detection_enable) {
+			resume_flag = 1;
+			ts_rebase_count = 0;
+		}
+#endif
 
 		if (ts->pdata->role->operation_mode)
 			enable_irq(ts->client->irq);
@@ -4137,4 +4134,3 @@ void touch_driver_unregister(void)
 	if (touch_wq)
 		destroy_workqueue(touch_wq);
 }
-
