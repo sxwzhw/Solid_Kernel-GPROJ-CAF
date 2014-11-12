@@ -1,7 +1,7 @@
 VERSION = 3
 PATCHLEVEL = 4
-SUBLEVEL = 104
-EXTRAVERSION = _Solid_Kernel_v1.3
+SUBLEVEL = 0
+EXTRAVERSION = _Solid_Kernel_v1.4
 NAME = Saber-toothed Squirrel
 
 # *DOCUMENTATION*
@@ -595,8 +595,6 @@ ifndef CONFIG_FUNCTION_TRACER
 KBUILD_CFLAGS	+= -fomit-frame-pointer
 endif
 endif
-
-KBUILD_CFLAGS   += $(call cc-option, -fno-var-tracking-assignments)
 
 ifdef CONFIG_DEBUG_INFO
 KBUILD_CFLAGS	+= -g
