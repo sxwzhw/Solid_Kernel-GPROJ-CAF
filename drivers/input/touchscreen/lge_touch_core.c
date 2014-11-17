@@ -3901,7 +3901,7 @@ static int touch_remove(struct i2c_client *client)
 	/* Specific device remove */
 	if (touch_device_func->remove)
 		touch_device_func->remove(ts->client);
-
+	release_all_ts_event(ts);
 	/* Power off */
 	touch_power_cntl(ts, POWER_OFF);
 
