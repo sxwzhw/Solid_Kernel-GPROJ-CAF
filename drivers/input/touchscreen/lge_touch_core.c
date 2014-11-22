@@ -3819,7 +3819,7 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 
 	/* jitter solution */
 	if (ts->pdata->role->jitter_filter_enable){
-		ts->jitter_filter.adjust_margin = 50;
+		ts->jitter_filter.adjust_margin = 100;
 	}
 
 	/* accuracy solution */
@@ -3901,7 +3901,7 @@ static int touch_remove(struct i2c_client *client)
 	/* Specific device remove */
 	if (touch_device_func->remove)
 		touch_device_func->remove(ts->client);
-
+	release_all_ts_event(ts);
 	/* Power off */
 	touch_power_cntl(ts, POWER_OFF);
 
