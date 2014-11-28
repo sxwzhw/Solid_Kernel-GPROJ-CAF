@@ -50,6 +50,9 @@ modules.builtin
 /modules.sh
 /patch
 /makeboot2.sh
+/copyzip2.sh
+/modules2.sh
+/solidpatch
 
 #
 # Debian directory (make deb-pkg)
