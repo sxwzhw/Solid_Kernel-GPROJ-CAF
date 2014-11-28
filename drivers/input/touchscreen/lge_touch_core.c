@@ -3819,13 +3819,13 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 
 	/* jitter solution */
 	if (ts->pdata->role->jitter_filter_enable){
-		ts->jitter_filter.adjust_margin = 100;
+		ts->jitter_filter.adjust_margin = 50;
 	}
 
 	/* accuracy solution */
 	if (ts->pdata->role->accuracy_filter_enable){
 		ts->accuracy_filter.ignore_pressure_gap = 5;
-		ts->accuracy_filter.delta_max = 100;
+		ts->accuracy_filter.delta_max = 30;
 		ts->accuracy_filter.max_pressure = 255;
 		ts->accuracy_filter.time_to_max_pressure = one_sec / 20;
 		ts->accuracy_filter.direction_count = one_sec / 6;
@@ -3839,7 +3839,7 @@ static int touch_probe(struct i2c_client *client, const struct i2c_device_id *id
 	register_early_suspend(&ts->early_suspend);
 #endif
 
-	atomic_set(&ts->keypad_enable, 1);
+        atomic_set(&ts->keypad_enable, 1);
 
 	/* Register sysfs for making fixed communication path to framework layer */
 	ret = sysdev_class_register(&lge_touch_sys_class);
@@ -3901,7 +3901,7 @@ static int touch_remove(struct i2c_client *client)
 	/* Specific device remove */
 	if (touch_device_func->remove)
 		touch_device_func->remove(ts->client);
-	release_all_ts_event(ts);
+
 	/* Power off */
 	touch_power_cntl(ts, POWER_OFF);
 
@@ -3957,10 +3957,22 @@ static void touch_early_suspend(struct early_suspend *h)
 	if (unlikely(touch_debug_mask & DEBUG_TRACE))
 		TOUCH_DEBUG_MSG("\n");
 
-	if (ts->fw_info.fw_upgrade.is_downloading == UNDER_DOWNLOADING){
+	if (ts->fw_info.fw_upgrade.is_downloading == UNDER_DOWNLOADING) {
 		TOUCH_INFO_MSG("early_suspend is not executed\n");
 		return;
 	}
+
+#ifdef CUST_G_TOUCH
+	if (ts->pdata->role->ghost_detection_enable) {
+		resume_flag = 0;
+	}
+#endif
+
+#ifdef CUST_G_TOUCH
+	if (ts->pdata->role->ghost_detection_enable) {
+		hrtimer_cancel(&hr_touch_trigger_timer);
+	}
+#endif
 
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 	if (prevent_sleep) {
@@ -3970,22 +3982,10 @@ static void touch_early_suspend(struct early_suspend *h)
 	} else
 #endif
 	{
-		if (ts->pdata->role->operation_mode)
+		if (ts->pdata->role->operation_mode == INTERRUPT_MODE)
 			disable_irq(ts->client->irq);
 		else
 			hrtimer_cancel(&ts->timer);
-
-#ifdef CUST_G_TOUCH
-		if (ts->pdata->role->ghost_detection_enable) {
-			resume_flag = 0;
-		}
-#endif
-
-#ifdef CUST_G_TOUCH
-		if (ts->pdata->role->ghost_detection_enable) {
-			hrtimer_cancel(&hr_touch_trigger_timer);
-		}
-#endif
 
 		cancel_work_sync(&ts->work);
 		cancel_delayed_work_sync(&ts->work_init);
@@ -4017,10 +4017,17 @@ static void touch_late_resume(struct early_suspend *h)
 	if (unlikely(touch_debug_mask & DEBUG_TRACE))
 		TOUCH_DEBUG_MSG("\n");
 
-	if (ts->fw_info.fw_upgrade.is_downloading == UNDER_DOWNLOADING){
+	if (ts->fw_info.fw_upgrade.is_downloading == UNDER_DOWNLOADING) {
 		TOUCH_INFO_MSG("late_resume is not executed\n");
 		return;
 	}
+
+#ifdef CUST_G_TOUCH
+	if (ts->pdata->role->ghost_detection_enable) {
+		resume_flag = 1;
+		ts_rebase_count = 0;
+	}
+#endif
 
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 	if (prevent_sleep) {
@@ -4031,19 +4038,12 @@ static void touch_late_resume(struct early_suspend *h)
 	{
 		touch_power_cntl(ts, ts->pdata->role->resume_pwr);
 
-		if (ts->pdata->role->operation_mode)
+		if (ts->pdata->role->operation_mode == INTERRUPT_MODE)
 			enable_irq(ts->client->irq);
 		else
 			hrtimer_start(&ts->timer,
 				ktime_set(0, ts->pdata->role->report_period),
 						HRTIMER_MODE_REL);
-
-#ifdef CUST_G_TOUCH
-		if (ts->pdata->role->ghost_detection_enable) {
-			resume_flag = 1;
-			ts_rebase_count = 0;
-		}
-#endif
 
 		if (ts->pdata->role->resume_pwr == POWER_ON)
 			queue_delayed_work(touch_wq, &ts->work_init,
