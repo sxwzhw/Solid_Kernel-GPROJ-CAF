@@ -479,6 +479,7 @@ struct sk_buff {
 	union {
 		__u32		mark;
 		__u32		dropcount;
+		__u32		avail_size;
 		__u32		reserved_tailroom;
 	};
 
